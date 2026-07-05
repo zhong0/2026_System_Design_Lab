@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class AppConfig(BaseSettings):
     APP_NAME: str
     SERVER_IP: str = ""
-    SERVER_PORT: int = 1001
+    SERVER_PORT: int = 1004
     RABBITMQ_HOST: str = "rabbitmq"
     RABBITMQ_PORT: int = 5672
     RABBITMQ_QUEUE: str = "grab_requests"

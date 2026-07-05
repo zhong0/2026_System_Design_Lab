@@ -32,6 +32,6 @@ WORKDIR /app
 COPY ./requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
-EXPOSE 1001
+EXPOSE 1004
 
 CMD ["python", "main.py"]

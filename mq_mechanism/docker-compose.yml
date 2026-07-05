@@ -36,7 +36,7 @@ services:
     build: ./raise_grab_service
     image: mq_mechanism_raise_grab:dev-1.0.0
     ports:
-      - "1001:1001"
+      - "1004:1004"
     networks:
       - mq-mechanism-network
     volumes:
@@ -44,7 +44,7 @@ services:
     environment:
       - APP_NAME=Raise Grab Service
       - CODE_ROOT=/app
-      - SERVER_PORT=1001
+      - SERVER_PORT=1004
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - RABBITMQ_QUEUE=grab_requests
@@ -107,7 +107,7 @@ services:
     container_name: kafka_ui
     image: provectuslabs/kafka-ui:v0.7.2
     ports:
-      - "1004:8080"
+      - "1005:8080"
     networks:
       - mq-mechanism-network
     environment:
