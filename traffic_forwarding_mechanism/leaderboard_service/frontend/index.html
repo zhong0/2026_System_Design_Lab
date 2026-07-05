@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>大吉排行榜</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Noto+Sans+TC:wght@300;400&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #1c1c1e;
+      --surface: #242426;
+      --border: #2e2e30;
+      --text: #e8e4dc;
+      --text-muted: #6e6e73;
+      --text-dim: #3a3a3c;
+      --accent: #c8b89a;
+      --accent-dim: #7a6e5e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans TC', 'Noto Serif JP', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 64px 24px 80px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .header { margin-bottom: 48px; }
+
+    .label {
+      font-size: 0.65rem;
+      letter-spacing: 0.35em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .title {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 2rem;
+      font-weight: 300;
+      color: var(--text);
+      letter-spacing: 0.2em;
+      line-height: 1.4;
+    }
+
+    .title span { color: var(--accent); }
+
+    .subtitle {
+      margin-top: 10px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.15em;
+    }
+
+    .rule {
+      width: 32px;
+      height: 1px;
+      background: var(--accent-dim);
+      margin: 20px 0;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 28px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+    }
+
+    .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      animation: breathe 2.5s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      background: var(--surface);
+      padding: 18px 20px;
+      gap: 20px;
+      transition: background 0.15s;
+      animation: appear 0.3s ease both;
+    }
+
+    .item:hover { background: #2a2a2c; }
+
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .item:nth-child(1) { animation-delay: 0.05s; }
+    .item:nth-child(2) { animation-delay: 0.1s; }
+    .item:nth-child(3) { animation-delay: 0.15s; }
+    .item:nth-child(4) { animation-delay: 0.2s; }
+    .item:nth-child(5) { animation-delay: 0.25s; }
+
+    .rank {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      width: 20px;
+      text-align: center;
+      flex-shrink: 0;
+      letter-spacing: 0.05em;
+    }
+
+    .item.top .rank { color: var(--accent); font-size: 0.85rem; }
+
+    .name {
+      flex: 1;
+      font-size: 0.95rem;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      color: var(--text);
+    }
+
+    .right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .count {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    .item:not(.top) .count { font-size: 0.95rem; color: var(--accent-dim); }
+
+    .unit {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      letter-spacing: 0.15em;
+    }
+
+    .bar {
+      width: 48px;
+      height: 2px;
+      background: var(--text-dim);
+      border-radius: 1px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .bar-inner {
+      height: 100%;
+      background: var(--accent-dim);
+      border-radius: 1px;
+      transition: width 0.5s ease;
+    }
+
+    .item.top .bar-inner { background: var(--accent); }
+
+    .empty {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      text-align: center;
+      padding: 56px 24px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      letter-spacing: 0.2em;
+    }
+
+    .footer {
+      margin-top: 28px;
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="label">Fortune Ranking</div>
+    <div class="title">大吉<span>排行榜</span></div>
+    <div class="subtitle">抽到最多大吉的人</div>
+    <div class="rule"></div>
+  </div>
+
+  <div class="status">
+    <div class="dot"></div>
+    <span id="countdown-text">每 5 秒自動更新</span>
+  </div>
+
+  <div id="board">
+    <div class="empty">載入中⋯</div>
+  </div>
+
+  <div class="footer">
+    <span>大吉抽籤系統</span>
+    <span id="updated-at">—</span>
+  </div>
+
+</div>
+
+<script>
+  const API_URL = '/leaderboard';
+  const REFRESH_INTERVAL = 10;
+  let countdown = REFRESH_INTERVAL;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function now() {
+    const d = new Date();
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} 更新`;
+  }
+
+  function render(data) {
+    const board = document.getElementById('board');
+
+    if (!data || data.length === 0) {
+      board.innerHTML = `<div class="empty">尚無資料⋯</div>`;
+      return;
+    }
+
+    const max = data[0].count || 1;
+    const kanji = ['一', '二', '三', '四', '五'];
+
+    board.innerHTML = `<div class="list">${
+      data.map((item, i) => {
+        const rank = item.rank || (i + 1);
+        const isTop = rank <= 5;
+        const pct = Math.round((item.count / max) * 100);
+        const badge = rank <= 5 ? kanji[rank - 1] : rank;
+        return `
+          <div class="item ${isTop ? 'top' : ''}">
+            <div class="rank">${badge}</div>
+            <div class="name">${item.username}</div>
+            <div class="bar"><div class="bar-inner" style="width:${pct}%"></div></div>
+            <div class="right">
+              <div class="count">${item.count}</div>
+              <div class="unit">次大吉</div>
+            </div>
+          </div>`;
+      }).join('')
+    }</div>`;
+
+    document.getElementById('updated-at').textContent = now();
+  }
+
+  async function fetchData() {
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      render(data.leaderboard_table.slice(0, 5));
+    } catch {
+      document.getElementById('board').innerHTML =
+        `<div class="empty">無法連線到服務⋯</div>`;
+    }
+  }
+
+  function tick() {
+    countdown--;
+    if (countdown <= 0) {
+      countdown = REFRESH_INTERVAL;
+      fetchData();
+    }
+    document.getElementById('countdown-text').textContent =
+      `${countdown} 秒後自動更新`;
+  }
+
+  fetchData();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>

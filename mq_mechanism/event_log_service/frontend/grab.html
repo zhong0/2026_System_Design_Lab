@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Grab</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=Noto+Sans+TC:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0e0b1f;
+      --bg-2: #1a1538;
+      --surface: #221b46;
+      --surface-2: #2c2456;
+      --border: #3a316b;
+      --text: #f5f1ff;
+      --text-muted: #9a93c4;
+      --text-dim: #5a527d;
+      --accent: #ffcc4d;
+      --accent-2: #ff8a3d;
+      --accent-glow: rgba(255, 204, 77, 0.45);
+      --green: #2ee6a8;
+      --red: #ff5c8a;
+      --blue: #5cd8ff;
+      --purple: #b388ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse at 30% 0%, rgba(255, 138, 61, 0.12), transparent 55%),
+        radial-gradient(ellipse at 70% 100%, rgba(179, 136, 255, 0.12), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      font-weight: 400;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding: 28px 22px 32px;
+    }
+
+    .head { text-align: center; }
+    h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      font-size: 0.62rem;
+      letter-spacing: 0.3em;
+      margin-top: 6px;
+      text-transform: uppercase;
+    }
+
+    .ws-bar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      letter-spacing: 0.25em;
+      margin-top: 14px;
+    }
+    .ws-bar .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+    }
+    .ws-bar .dot.on {
+      background: var(--green);
+      box-shadow: 0 0 10px var(--green);
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 4px;
+      margin-top: 16px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px;
+    }
+    .mode-toggle button {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-toggle { cursor: default; }
+    .mode-toggle button { cursor: default; }
+    .mode-toggle button.active[data-mode="async"] {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      color: var(--bg);
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .mode-toggle button.active[data-mode="sync"] {
+      background: var(--purple);
+      color: var(--bg);
+      box-shadow: 0 4px 14px rgba(179, 136, 255, 0.4);
+    }
+    .mode-toggle button .tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.55rem;
+      display: block;
+      margin-top: 2px;
+      opacity: 0.7;
+      letter-spacing: 0.15em;
+    }
+
+    .spots {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 22px;
+    }
+    .spot {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 6px;
+      text-align: center;
+      transition: all 0.4s;
+    }
+    .spot-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      letter-spacing: 0.3em;
+      margin-bottom: 8px;
+    }
+    .spot-name {
+      font-family: 'Space Grotesk', 'Noto Sans TC', sans-serif;
+      font-weight: 500;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+      min-height: 1.4em;
+    }
+    .spot.empty .spot-name { color: var(--text-dim); }
+    .spot.filled {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, var(--surface), var(--surface-2));
+      box-shadow: 0 0 24px var(--accent-glow);
+      animation: pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    .spot.filled .spot-name { color: var(--accent); }
+    @keyframes pop {
+      0%   { transform: scale(0.85); }
+      60%  { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    /* spacer above center cluster */
+    .spacer-top { flex: 1; min-height: 18px; }
+    .spacer-bottom { flex: 1; min-height: 18px; }
+
+    .center-cluster {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .status {
+      text-align: center;
+      padding: 10px 16px;
+      background: transparent;
+      border: none;
+      transition: all 0.3s;
+    }
+    .status .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.35em;
+      margin-bottom: 2px;
+    }
+    .status .detail {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+    .status.idle .label { color: var(--text-dim); }
+    .status.queued .label { color: var(--blue); }
+    .status.won { animation: winPulse 0.6s ease both; }
+    .status.won .label { color: var(--green); font-size: 1.4rem; letter-spacing: 0.04em; }
+    .status.won .detail { color: var(--green); font-size: 1rem; margin-top: 4px; }
+    .status.lost .label { color: var(--red); font-size: 1.1rem; letter-spacing: 0.04em; }
+    .status.lost .detail { color: var(--red); }
+
+    @keyframes winPulse {
+      0%   { transform: scale(0.92); }
+      60%  { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .input-wrap { position: relative; }
+    .input-tag {
+      position: absolute;
+      top: -9px;
+      left: 18px;
+      background: var(--bg);
+      padding: 0 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      z-index: 1;
+    }
+    .form input {
+      width: 100%;
+      background: var(--bg-2);
+      border: 2px dashed var(--accent);
+      border-radius: 14px;
+      color: var(--text);
+      padding: 22px 22px;
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      font-weight: 500;
+      font-size: 1.2rem;
+      letter-spacing: 0.04em;
+      text-align: center;
+      transition: border-style 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .form input::placeholder { color: var(--text-muted); font-weight: 400; }
+    .form input:focus {
+      outline: none;
+      border-style: solid;
+      border-color: var(--accent);
+      background: var(--surface);
+      box-shadow: 0 0 0 4px var(--accent-glow);
+    }
+    .form input:not(:placeholder-shown) {
+      border-style: solid;
+      border-color: var(--accent);
+    }
+    .form button {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      color: var(--bg);
+      border: none;
+      border-radius: 16px;
+      padding: 26px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      cursor: pointer;
+      box-shadow: 0 8px 28px var(--accent-glow);
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .form button:active {
+      transform: scale(0.96);
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+    .form button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="head">
+  <h1>GRAB</h1>
+  <div class="subtitle">Raise · Grab · Win</div>
+  <div class="ws-bar">
+    <span class="dot" id="ws-dot"></span><span id="ws-state">CONNECTING</span>
+  </div>
+  <div class="mode-toggle" id="mode-toggle" style="display:none">
+    <button data-mode="async" class="active">ASYNC<span class="tag">MQ · WS</span></button>
+    <button data-mode="sync">SYNC<span class="tag">HTTP BLOCK</span></button>
+  </div>
+</div>
+
+<div class="spots">
+  <div class="spot empty" id="spot-1"><div class="spot-label">SPOT 1</div><div class="spot-name">—</div></div>
+  <div class="spot empty" id="spot-2"><div class="spot-label">SPOT 2</div><div class="spot-name">—</div></div>
+  <div class="spot empty" id="spot-3"><div class="spot-label">SPOT 3</div><div class="spot-name">—</div></div>
+</div>
+
+<div class="spacer-top"></div>
+
+<div class="center-cluster">
+  <div class="status idle" id="status">
+    <div class="label" id="status-label">READY</div>
+    <div class="detail" id="status-detail">輸入名字並按 GRAB</div>
+  </div>
+
+  <div class="form">
+    <div class="input-wrap">
+      <span class="input-tag">NAME</span>
+      <input id="username" placeholder="點這裡輸入你的名字" autocomplete="off" autocapitalize="words"/>
+    </div>
+    <button id="grab-btn">GRAB</button>
+  </div>
+</div>
+
+<div class="spacer-bottom"></div>
+
+<script>
+  const API_BASE = `${window.location.protocol}//${window.location.hostname}:1001`;
+  const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+
+  const wsDot = document.getElementById('ws-dot');
+  const wsState = document.getElementById('ws-state');
+  const grabBtn = document.getElementById('grab-btn');
+  const usernameInput = document.getElementById('username');
+  const statusBox = document.getElementById('status');
+  const statusLabel = document.getElementById('status-label');
+  const statusDetail = document.getElementById('status-detail');
+
+  let myRequestId = null;
+  let mode = 'async';
+  let syncPollTimer = null;
+
+  function applyMode(newMode) {
+    if (newMode !== 'sync' && newMode !== 'async') return;
+    if (mode === newMode) return;
+    mode = newMode;
+    document.querySelectorAll('#mode-toggle button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    if (!grabBtn.disabled) {
+      grabBtn.textContent = 'GRAB';
+      setStatus('idle', 'READY', '輸入名字並按 GRAB');
+    }
+    resetSpots();
+    if (mode === 'sync') {
+      startSyncPoll();
+    } else {
+      stopSyncPoll();
+    }
+  }
+
+  function resetSpots() {
+    for (let i = 1; i <= 3; i++) {
+      const el = document.getElementById(`spot-${i}`);
+      if (!el) continue;
+      el.classList.remove('filled');
+      el.classList.add('empty');
+      el.querySelector('.spot-name').textContent = '—';
+    }
+  }
+
+  async function pollSyncState() {
+    try {
+      const res = await fetch(`${API_BASE}/sync/state`);
+      const data = await res.json();
+      data.spots.forEach((s) => {
+        const el = document.getElementById(`spot-${s.index}`);
+        if (!el) return;
+        if (s.username) {
+          el.classList.remove('empty');
+          el.classList.add('filled');
+          el.querySelector('.spot-name').textContent = s.username;
+        } else {
+          el.classList.remove('filled');
+          el.classList.add('empty');
+          el.querySelector('.spot-name').textContent = '—';
+        }
+      });
+    } catch (e) { /* ignore */ }
+  }
+  function startSyncPoll() {
+    stopSyncPoll();
+    pollSyncState();
+    syncPollTimer = setInterval(pollSyncState, 1000);
+  }
+  function stopSyncPoll() {
+    if (syncPollTimer) { clearInterval(syncPollTimer); syncPollTimer = null; }
+  }
+
+  function setStatus(state, label, detail) {
+    statusBox.className = `status ${state}`;
+    statusLabel.textContent = label;
+    statusDetail.textContent = detail;
+  }
+
+  function fillSpot(n, name) {
+    const el = document.getElementById(`spot-${n}`);
+    if (!el) return;
+    el.classList.remove('empty');
+    el.classList.add('filled');
+    el.querySelector('.spot-name').textContent = name;
+  }
+
+  function connectWS() {
+    const ws = new WebSocket(WS_URL);
+    ws.addEventListener('open', () => {
+      wsDot.classList.add('on');
+      wsState.textContent = 'LIVE';
+    });
+    ws.addEventListener('close', () => {
+      wsDot.classList.remove('on');
+      wsState.textContent = 'RECONNECTING';
+      setTimeout(connectWS, 1500);
+    });
+    ws.addEventListener('message', (msg) => {
+      try {
+        const env = JSON.parse(msg.data);
+        if (env.type === 'mode') {
+          applyMode(env.mode);
+          return;
+        }
+        if (mode !== 'async') return;
+        const event = env.event;
+
+        if (env.stream === 'results') {
+          if (event.event_type === 'grab_won') {
+            fillSpot(event.spot, event.username);
+          } else if (event.event_type === 'reset') {
+            resetSpots();
+            myRequestId = null;
+            if (!grabBtn.disabled) {
+              setStatus('idle', 'READY', '名額已重置 · 重新搶');
+            }
+          }
+        }
+
+        if (myRequestId && event.request_id === myRequestId) {
+          if (event.event_type === 'grab_won') {
+            setStatus('won', `WON SPOT ${event.spot}`, `🎉 ${event.username}`);
+          } else if (event.event_type === 'grab_lost') {
+            setStatus('lost', 'TOO SLOW', '名額已被搶完');
+          }
+        }
+      } catch (e) { console.error(e); }
+    });
+  }
+  connectWS();
+
+  function lockOut(label, detail) {
+    grabBtn.disabled = true;
+    grabBtn.textContent = label;
+    usernameInput.disabled = true;
+    if (detail) {
+      const hint = document.createElement('div');
+      hint.style.cssText = 'text-align:center;font-family:JetBrains Mono,monospace;font-size:0.62rem;letter-spacing:0.25em;color:var(--text-muted);margin-top:-4px;';
+      hint.textContent = detail;
+      grabBtn.parentNode.appendChild(hint);
+    }
+  }
+
+  grabBtn.addEventListener('click', async () => {
+    if (grabBtn.disabled) return;
+    const username = usernameInput.value.trim();
+    if (!username) { setStatus('idle', 'READY', '請先輸入名字'); return; }
+    grabBtn.disabled = true;
+
+    if (mode === 'sync') {
+      const start = Date.now();
+      let waited = 0;
+      setStatus('queued', 'WAITING…', `HTTP 阻塞中 · 0.0s`);
+      const tick = setInterval(() => {
+        waited = (Date.now() - start) / 1000;
+        statusDetail.textContent = `HTTP 阻塞中 · ${waited.toFixed(1)}s`;
+      }, 100);
+      try {
+        const res = await fetch(`${API_BASE}/grab-sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        });
+        clearInterval(tick);
+        const data = await res.json();
+        const total = ((Date.now() - start) / 1000).toFixed(2);
+        if (data.result === 'won') {
+          setStatus('won', `WON SPOT ${data.spot}`, `🎉 ${data.username} · 等了 ${total}s`);
+        } else if (data.result === 'lost') {
+          setStatus('lost', 'TOO SLOW', `名額已被搶完 · 等了 ${total}s`);
+        } else {
+          setStatus('lost', 'ERROR', JSON.stringify(data));
+        }
+        lockOut('DONE', '一人僅能搶一次 · 重新整理才可再搶');
+      } catch (e) {
+        clearInterval(tick);
+        setStatus('lost', 'ERROR', e.message);
+        grabBtn.disabled = false;
+      }
+      return;
+    }
+
+    setStatus('queued', 'SENDING', '送出請求中…');
+    try {
+      const res = await fetch(`${API_BASE}/grab`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (data.request_id) {
+        myRequestId = data.request_id;
+        setStatus('queued', 'QUEUED', `等待結果中 · ${data.request_id}`);
+        lockOut('DONE', '一人僅能搶一次 · 重新整理才可再搶');
+      } else {
+        setStatus('lost', 'ERROR', JSON.stringify(data));
+        grabBtn.disabled = false;
+      }
+    } catch (e) {
+      setStatus('lost', 'ERROR', e.message);
+      grabBtn.disabled = false;
+    }
+  });
+
+  usernameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') grabBtn.click();
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+.env
+postgres_data/
+redis_data/
+__pycache__/
+log_records/

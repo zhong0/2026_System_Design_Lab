@@ -1,0 +1,31 @@
+services:
+  short_link_service:
+    container_name: short_link_service
+    image: cache_mecahnime_lab:dev-1.0.0
+    pid: host
+    ports:
+      - "1002:1002"
+    networks:
+      - cache-lab-network
+    volumes:
+      - ./:/app
+    environment:
+      - APP_NAME=Cache Mechanism Lab
+      - CODE_ROOT=/app
+      - SERVER_IP=localhost
+      - SERVER_PORT=1002
+      - POSTGRES_IP=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD}
+      - REDIS_IP=redis
+      - REDIS_PORT=6379
+      - REDIS_PWD=${REDIS_PASSWORD}
+      - LOG_LEVEL=INFO
+      - CACHE_TTL=20
+    restart: unless-stopped
+
+networks:
+  cache-lab-network:
+    external: true

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf raise_grab_service/redis_tool)",
+      "Bash(rm -f raise_grab_service/api/fortuneApi.py raise_grab_service/service/fortune.py raise_grab_service/schema/request.py)",
+      "Bash(rm -f raise_grab_service/app.py raise_grab_service/config.py raise_grab_service/requirements.txt raise_grab_service/README.md raise_grab_service/main.py raise_grab_service/api/router.py)",
+      "Bash(rm -rf event_log_service/redis_tool event_log_service/schema)",
+      "Bash(rm -f event_log_service/api/leaderboardApi.py event_log_service/api/router.py event_log_service/service/leaderboardSvc.py)"
+    ]
+  }
+}

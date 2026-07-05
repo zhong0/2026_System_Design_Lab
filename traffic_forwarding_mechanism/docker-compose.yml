@@ -1,0 +1,143 @@
+services:
+  fortune_service_1:
+    container_name: fortune_service_1
+    image: traffic_forwarding_lab:dev-1.0.0
+    pid: host
+    networks:
+      - traffic-forwarding-lab-nework
+    volumes:
+      - ./fortune_service:/app
+    environment:
+      - APP_NAME=Traffic Forwarding Lab
+      - CODE_ROOT=/app
+      - SERVER_PORT=1001
+      - REDIS_IP=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+
+  fortune_service_2:
+    container_name: fortune_service_2
+    image: traffic_forwarding_lab:dev-1.0.0
+    pid: host
+    networks:
+      - traffic-forwarding-lab-nework
+    volumes:
+      - ./fortune_service:/app
+    environment:
+      - APP_NAME=Traffic Forwarding Lab
+      - CODE_ROOT=/app
+      - SERVER_PORT=1001
+      - REDIS_IP=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+
+  fortune_service_3:
+    container_name: fortune_service_3
+    image: traffic_forwarding_lab:dev-1.0.0
+    pid: host
+    networks:
+      - traffic-forwarding-lab-nework
+    volumes:
+      - ./fortune_service:/app
+    environment:
+      - APP_NAME=Traffic Forwarding Lab
+      - CODE_ROOT=/app
+      - SERVER_PORT=1001
+      - REDIS_IP=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+
+  leaderboard_service:
+    container_name: leaderboard_service
+    image: traffic_forwarding_lab:dev-1.0.0
+    pid: host
+    networks:
+      - traffic-forwarding-lab-nework
+    volumes:
+      - ./leaderboard_service:/app
+    environment:
+      - APP_NAME=Traffic Forwarding Lab
+      - CODE_ROOT=/app
+      - SERVER_PORT=1001
+      - REDIS_IP=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    networks:
+      - traffic-forwarding-lab-nework
+
+  kong-database:
+    container_name: kong-database
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=kong
+      - POSTGRES_PASSWORD=kong
+      - POSTGRES_DB=kong
+    networks:
+      - traffic-forwarding-lab-nework
+    restart: unless-stopped
+
+  kong-migration:
+    container_name: kong-migration
+    image: kong:3.6
+    command: kong migrations bootstrap
+    environment:
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=kong-database
+      - KONG_PG_USER=kong
+      - KONG_PG_PASSWORD=kong
+      - KONG_PG_DATABASE=kong
+    networks:
+      - traffic-forwarding-lab-nework
+    depends_on:
+      - kong-database
+    restart: on-failure
+
+  kong:
+    container_name: kong
+    image: kong:3.6
+    environment:
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=kong-database
+      - KONG_PG_USER=kong
+      - KONG_PG_PASSWORD=kong
+      - KONG_PG_DATABASE=kong
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      - KONG_ADMIN_GUI_URL=http://localhost:8002
+    ports:
+      - "8000:8000"   # proxy port（Nginx 會打這裡）
+      - "8001:8001"   # admin API（設定 Kong 用）
+      - "8002:8002"
+    networks:
+      - traffic-forwarding-lab-nework
+    depends_on:
+      - kong-migration
+    restart: unless-stopped
+
+  nginx:
+    container_name: nginx
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - traffic-forwarding-lab-nework
+    depends_on:
+      - kong
+    restart: unless-stopped
+
+networks:
+  traffic-forwarding-lab-nework:
+    external: true

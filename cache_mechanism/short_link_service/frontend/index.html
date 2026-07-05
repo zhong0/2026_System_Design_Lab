@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>短連結 — Cache Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400&family=DM+Mono:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #141412;
+      --surface: #1e1d1b;
+      --surface2: #252422;
+      --text: #d8d5ce;
+      --text-muted: #7a776f;
+      --text-faint: #4a4845;
+      --accent: #c8a96e;
+      --hit: #72b07a;
+      --miss: #c97060;
+      --info: #7aa0c8;
+      --border: rgba(216,213,206,0.1);
+      --border-med: rgba(216,213,206,0.18);
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 17px;
+      line-height: 1.6;
+    }
+
+    body {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    header {
+      padding: 3rem 0 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .site-title {
+      font-family: 'Noto Serif TC', serif;
+      font-weight: 400;
+      font-size: 1.3rem;
+      color: var(--text);
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+    }
+
+    .site-sub {
+      font-size: 0.8rem;
+      color: var(--text-faint);
+      margin-top: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+
+    main {
+      padding: 2.5rem 0 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
+    }
+
+    .block-title {
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+      font-family: 'Noto Serif TC', serif;
+      font-weight: 300;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: stretch;
+      margin-bottom: 1rem;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      background: var(--surface);
+      border: 1px solid var(--border-med);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.95rem;
+      padding: 0.7rem 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      border-color: var(--accent);
+    }
+
+    input::placeholder { color: var(--text-faint); }
+
+    .ttl-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .ttl-row input[type="number"] {
+      width: 80px;
+      text-align: center;
+      padding: 0.5rem 0.5rem;
+    }
+
+    button {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      padding: 0.7rem 1.5rem;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.3; cursor: default; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border-med);
+    }
+
+    .btn-ghost:hover { background: var(--surface); }
+
+    .result-card {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border-med);
+      padding: 1.5rem;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .result-card.visible { display: flex; }
+
+    .result-label {
+      font-size: 0.75rem;
+      color: var(--text-faint);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+    }
+
+    .result-url {
+      font-size: 1.05rem;
+      font-style: italic;
+      color: var(--accent);
+      word-break: break-all;
+      letter-spacing: 0.02em;
+    }
+
+    .result-original {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    .divider { border: none; border-top: 1px solid var(--border); }
+
+    .ttl-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .ttl-val {
+      font-size: 1.1rem;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s;
+    }
+
+    .ttl-val.expired { color: var(--miss); }
+
+    .progress-track {
+      height: 2px;
+      background: var(--surface2);
+    }
+
+    .progress-fill {
+      height: 100%;
+      transition: width 1s linear, background 0.4s;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border-med);
+    }
+
+    .stat-cell {
+      padding: 1.25rem 1.5rem;
+      border-right: 1px solid var(--border-med);
+    }
+
+    .stat-cell:last-child { border-right: none; }
+
+    .stat-name {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-num {
+      font-size: 1.8rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-num.hit { color: var(--hit); }
+    .stat-num.miss { color: var(--miss); }
+    .stat-num.time { font-size: 1.1rem; color: var(--accent); }
+
+    .log-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-row {
+      display: grid;
+      grid-template-columns: 4.5rem 4.5rem 1fr auto;
+      gap: 1rem;
+      align-items: baseline;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .log-time {
+      font-size: 0.75rem;
+      color: var(--text-faint);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tag {
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      padding: 0.2rem 0.5rem;
+      display: inline-block;
+      text-align: center;
+    }
+
+    .tag-hit  { background: rgba(114,176,122,0.15); color: var(--hit); }
+    .tag-miss { background: rgba(201,112, 96,0.15); color: var(--miss); }
+    .tag-new  { background: rgba(122,160,200,0.15); color: var(--info); }
+    .tag-ttl  { background: rgba(122,119,111,0.15); color: var(--text-muted); }
+    .tag-err  { background: rgba(201,112, 96,0.15); color: var(--miss); }
+
+    .log-msg { color: var(--text-muted); }
+    .log-ms  { color: var(--text); font-variant-numeric: tabular-nums; }
+
+    .log-empty {
+      font-size: 0.85rem;
+      color: var(--text-faint);
+      font-style: italic;
+      padding: 1rem 0;
+    }
+
+    /* 短連結 input 樣式 */
+    .short-url-input {
+      flex: 1;
+      font-style: italic;
+      color: var(--accent) !important;
+      font-size: 1.05rem !important;
+      letter-spacing: 0.02em;
+      border-color: transparent !important;
+      padding-left: 0 !important;
+      background: transparent !important;
+    }
+
+    .short-url-input:focus {
+      border-color: var(--border-med) !important;
+      padding-left: 0.5rem !important;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="site-title">短連結服務</div>
+  <div class="site-sub">Short Link Service Demo</div>
+</header>
+
+<main>
+
+  <section>
+    <p class="block-title">建立短連結</p>
+    <div class="input-row">
+      <input type="text" id="urlInput" placeholder="https://your-long-url.com/path/to/something" />
+      <button class="btn-primary" id="createBtn" onclick="createLink()">建立</button>
+    </div>
+  </section>
+
+  <section>
+    <p class="block-title">建立結果</p>
+    <div class="result-card" id="resultCard">
+      <div>
+        <p class="result-label">短連結</p>
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <!-- 改成 input，可直接編輯 -->
+          <input type="text" id="shortUrl" class="short-url-input" />
+          <button class="btn-ghost" id="copyBtn" onclick="copyLink()" style="padding:0.4rem 0.9rem; font-size:0.75rem;">複製</button>
+        </div>
+      </div>
+      <hr class="divider" />
+      <div>
+        <p class="result-label">快取剩餘時間</p>
+        <div class="ttl-info">
+          <span>TTL</span>
+          <span class="ttl-val" id="ttlVal">--</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill" style="width:100%"></div>
+        </div>
+      </div>
+      <hr class="divider" />
+      <div class="action-row">
+        <button class="btn-ghost" onclick="fetchLink()">取得連結</button>
+      </div>
+      <div id="fetchResultWrap" style="display:none;">
+        <p class="result-label">取得內容</p>
+        <div class="result-url" id="fetchResultUrl" style="font-style:normal;"></div>
+        <div style="font-size:0.78rem; color:var(--text-faint); margin-top:0.3rem;" id="fetchResultMeta"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="block-title">統計</p>
+    <div class="stats-grid">
+      <div class="stat-cell">
+        <div class="stat-name">最近取得</div>
+        <div class="stat-num time" id="lastMs">—</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-name">Cache Hit</div>
+        <div class="stat-num hit" id="hitCount">0</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-name">Cache Miss</div>
+        <div class="stat-num miss" id="missCount">0</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="block-title">操作紀錄</p>
+    <div class="log-list" id="logList">
+      <p class="log-empty">尚無紀錄</p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const API = 'http://localhost:1002';
+  let currentCode = null;
+  let ttlTotal = __CACHE_TTL__;
+  let ttlRemain = 0;
+  let ttlTimer = null;
+  let hitCount = 0;
+  let missCount = 0;
+
+  function nowStr() {
+    return new Date().toLocaleTimeString('zh-TW', { hour12: false });
+  }
+
+  function addLog(tag, cls, msg, ms) {
+    const list = document.getElementById('logList');
+    const empty = list.querySelector('.log-empty');
+    if (empty) empty.remove();
+    const row = document.createElement('div');
+    row.className = 'log-row';
+    const msHtml = ms !== undefined
+      ? `<span class="log-ms">${ms.toFixed(2)}ms</span>`
+      : `<span></span>`;
+    row.innerHTML = `
+      <span class="log-time">${nowStr()}</span>
+      <span class="tag ${cls}">${tag}</span>
+      <span class="log-msg">${msg}</span>
+      ${msHtml}
+    `;
+    list.prepend(row);
+  }
+
+  function startTTL(sec) {
+    ttlTotal = sec;
+    ttlRemain = sec;
+    if (ttlTimer) clearInterval(ttlTimer);
+    renderTTL();
+    ttlTimer = setInterval(() => {
+      ttlRemain--;
+      renderTTL();
+      if (ttlRemain <= 0) {
+        clearInterval(ttlTimer);
+        document.getElementById('ttlVal').classList.add('expired');
+        addLog('TTL', 'tag-ttl', '快取已過期，下次取得將 cache miss');
+      }
+    }, 1000);
+  }
+
+  function renderTTL() {
+    const pct = Math.max(0, ttlRemain / ttlTotal * 100);
+    document.getElementById('ttlVal').textContent = ttlRemain > 0 ? `${ttlRemain}s` : '已過期';
+    const fill = document.getElementById('progressFill');
+    fill.style.width = pct + '%';
+    fill.style.background = pct > 50 ? '#72b07a' : pct > 20 ? '#c8a96e' : '#c97060';
+  }
+
+  async function createLink() {
+    const url = document.getElementById('urlInput').value.trim();
+    const ttl = __CACHE_TTL__;
+    if (!url) return;
+    document.getElementById('createBtn').disabled = true;
+    try {
+      const res = await fetch(`${API}/create_short_link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urlLink: url, expired_at: null })
+      });
+      const data = await res.json();
+      const shortLink = data.short_link || '';
+      currentCode = shortLink.split('/').pop();
+      hitCount = 0; missCount = 0;
+      document.getElementById('hitCount').textContent = '0';
+      document.getElementById('missCount').textContent = '0';
+      document.getElementById('lastMs').textContent = '—';
+      document.getElementById('shortUrl').value = shortLink;   // ← value
+      document.getElementById('ttlVal').classList.remove('expired');
+      document.getElementById('resultCard').classList.add('visible');
+      addLog('建立', 'tag-new', `短碼 ${currentCode} 建立成功`);
+      startTTL(ttl);
+    } catch (e) {
+      addLog('錯誤', 'tag-err', '無法連線，請確認服務已啟動');
+    }
+    document.getElementById('createBtn').disabled = false;
+  }
+
+  function copyLink() {
+    const url = document.getElementById('shortUrl').value;   // ← value
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = '已複製';
+      setTimeout(() => { btn.textContent = '複製'; }, 1500);
+    });
+  }
+
+  async function fetchLink() {
+    // 讀 input 的值取短碼，支援手動修改
+    const shortLink = document.getElementById('shortUrl').value.trim();
+    const code = shortLink.split('/').pop();
+    if (!code) return;
+    try {
+      const res = await fetch(`${API}/link/${code}/info`);
+
+      if (!res.ok) {
+        const err = await res.json();
+        if (err.error_code === 'sl-error-2') {
+          addLog('錯誤', 'tag-err', '短連結不存在或已過期');
+        } else {
+          addLog('錯誤', 'tag-err', '取得失敗');
+        }
+        return;
+      }
+
+      const data = await res.json();
+      const ms = parseFloat(data.excuted_time);
+      const isHit = data.source === 'redis';
+
+      document.getElementById('fetchResultUrl').textContent = data.url;
+      document.getElementById('fetchResultMeta').textContent = `來源：${data.source === 'redis' ? 'Redis 快取' : 'PostgreSQL'} ｜ 耗時：${ms.toFixed(2)}ms`;
+      document.getElementById('fetchResultWrap').style.display = 'block';
+      document.getElementById('lastMs').textContent = ms.toFixed(2) + 'ms';
+
+      if (isHit) {
+        hitCount++;
+        document.getElementById('hitCount').textContent = hitCount;
+        addLog('hit', 'tag-hit', 'Redis 快取命中', ms);
+      } else {
+        missCount++;
+        document.getElementById('missCount').textContent = missCount;
+        addLog('miss', 'tag-miss', '從 PostgreSQL 取得並寫入快取', ms);
+        if (ttlRemain <= 0) {
+          document.getElementById('ttlVal').classList.remove('expired');
+          startTTL(ttlTotal);
+        }
+      }
+    } catch (e) {
+      addLog('錯誤', 'tag-err', '取得失敗');
+    }
+  }
+</script>
+</body>
+</html>
