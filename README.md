@@ -10,9 +10,9 @@ Each member is assigned topics to research and explore through small-scale side 
 
 | Date | Topic | Description |
 |------|-------|-------------|
-| 2026/03/13 | **Traffic Forwarding** | An omikuji-inspired fortune drawing app with a lucky result dashboard |
-| 2026/05/08 | **Cache** | A URL shortener service implementation |
-| 2026/06/26 | **Message Queue** | TBD |
+| 2026/03/13 | **Traffic Forwarding** | An omikuji-inspired fortune drawing app that routes traffic through Nginx → Kong → load-balanced backends |
+| 2026/05/08 | **Cache** | A URL shortener demonstrating the cache-aside pattern with Redis in front of PostgreSQL |
+| 2026/07/03 | **Message Queue** | A "Grab a Raise" demo contrasting async (RabbitMQ + Kafka) and sync request pipelines |
 
 ---
 
@@ -20,10 +20,13 @@ Each member is assigned topics to research and explore through small-scale side 
 
 ```
 .
-├── traffic_forwarding_mechanism
-├── cache_mechanism
+├── traffic_forwarding_mechanism   # Traffic forwarding: Nginx + Kong + load-balanced services
+├── cache_mechanism                # Caching: cache-aside URL shortener (Redis + PostgreSQL)
+├── mq_mechanism                   # Message queue: "Grab a Raise" demo (RabbitMQ + Kafka)
 └── README.md
 ```
+
+Each subdirectory has its own README with setup instructions and design notes.
 
 ## References
  

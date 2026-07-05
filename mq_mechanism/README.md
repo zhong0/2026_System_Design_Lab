@@ -1,167 +1,143 @@
-# 搶加薪 · MQ Mechanism Demo
+# Message Queue Mechanism — "Grab a Raise" Demo
 
-一個用來現場展示 **Message Queue (RabbitMQ) + Event Streaming (Kafka)** 運作機制的技術 Demo。
-主題：**「搶加薪」** — 每輪只有 3 個名額，觀眾用手機掃 QR Code 進來搶，投影幕即時顯示誰搶到、queue 現況、以及 async / sync 兩種模式的差異。
+A live, interactive demo that shows how a **message queue (RabbitMQ)** and an **event stream (Kafka)** work together to decouple a spike of incoming requests from the work that processes them.
+
+The theme is **"Grab a Raise"**: each round has only **3 spots**. The audience scans a QR code on their phones and races to grab a spot. A projector dashboard shows in real time who won, the current queue state, and — most importantly — the difference between an **async (queued)** pipeline and a **sync (no queue)** pipeline.
 
 ---
 
-## 系統概觀
+## What It Demonstrates
 
-### 服務清單
+- **Async pipeline with a queue** — requests are published to RabbitMQ and consumed by a worker at a controlled rate. A spike of clicks is absorbed by the queue instead of overwhelming the app.
+- **Sync pipeline without a queue** — the same logic handled inline inside the web process (`asyncio.Lock` + `sleep`), shown side by side so the audience feels the latency and back-pressure difference.
+- **Event streaming for observability** — every request and every result is emitted to Kafka topics, then pushed to all connected browsers over WebSocket, so the dashboard and phones update live.
+- **Back-pressure / buffering (the highlight)** — pausing the worker lets requests visibly pile up in RabbitMQ; resuming it drains the backlog and fills the spots in order.
+- **Live mode switching** — an operator can flip all connected phones between async and sync mode from the dashboard via a WebSocket broadcast.
 
-| Service | Port | 角色 |
+---
+
+## Services
+
+| Service | Port | Role |
 |---|---|---|
-| `raise_grab_service` | `1001` | 接收使用者的搶名額 API；async 模式把 request publish 到 RabbitMQ；sync 模式在 process 內用 `asyncio.Lock` + `sleep` 直接處理 |
-| `grab_worker_service` | — | 從 RabbitMQ 消費 grab request，決定 win / lost，把結果 publish 到 Kafka；同時另開一條連線監聽 `grab_control` queue 處理 pause / resume / reset |
-| `event_log_service` | `1003` | 從 Kafka 消費兩個 topic (`grab_requests_log`, `grab_results_log`) 透過 **WebSocket 推播**給 dashboard 與所有手機端；同時 serve `grab.html`（手機）與 `index.html`（投影幕） |
-| `rabbitmq` | `5672 / 15672` | 業務 queue：`grab_requests`；控制 queue：`grab_control` |
-| `kafka` | `9092` | 兩個 topic：`grab_requests_log`（請求事件流）、`grab_results_log`（結果事件流） |
-| `kafka_ui` | `1004` | Provectus Kafka UI，讓觀眾看到 topic / partition / message |
+| `raise_grab_service` | `1004` | Receives grab requests. **Async** mode publishes each request to RabbitMQ; **sync** mode handles it inline with `asyncio.Lock` + `sleep`. |
+| `grab_worker_service` | — | Consumes grab requests from RabbitMQ, decides win/lost, and publishes the outcome to Kafka. A second connection listens on the `grab_control` queue for pause / resume / reset. |
+| `event_log_service` | `1003` | Consumes both Kafka topics and pushes events to the dashboard and phones over **WebSocket**. Also serves `grab.html` (phone) and `index.html` (projector dashboard). |
+| `rabbitmq` | `5672` / `15672` | Work queue `grab_requests`; control queue `grab_control`. Management UI on `15672` (`guest / guest`). |
+| `kafka` | `9092` | Two topics: `grab_requests_log` (request event stream) and `grab_results_log` (result event stream). |
+| `kafka_ui` | `1005` | Provectus Kafka UI — lets the audience watch topics, partitions, and messages. |
 
-> RabbitMQ Management UI：`http://<host>:15672`（帳密 `guest / guest`）
-> Kafka UI：`http://<host>:1004`
-
-### Async pipeline（有 queue）
+### Async Pipeline (with queue)
 
 ```
-手機 POST /grab
+Phone POST /grab
   → raise_grab_service
     → RabbitMQ (grab_requests)
-      → grab_worker_service（sleep 1.5s → 判斷 win/lost）
+      → grab_worker_service   (processes at a fixed rate → win / lost)
         → Kafka (grab_requests_log / grab_results_log)
-          → event_log_service（aiokafka consumer）
-            → WebSocket 推播
-              → dashboard + 中獎者手機
+          → event_log_service (Kafka consumer)
+            → WebSocket push
+              → dashboard + winners' phones
 ```
 
-### Sync pipeline（沒有 queue，用來對比）
+### Sync Pipeline (no queue, for contrast)
 
 ```
-手機 POST /grab-sync
-  → raise_grab_service.syncGrabSvc
-    → asyncio.Lock + asyncio.sleep(1.5)
-    → 直接回傳 HTTP response（win / lost）
+Phone POST /grab-sync
+  → raise_grab_service (inline: asyncio.Lock + sleep)
+    → immediate HTTP response (win / lost)
 
-dashboard 每 1 秒 polling GET /sync/state 更新畫面
+Dashboard polls GET /sync/state every 1s to refresh
 ```
 
-兩條 pipeline 各自有獨立的 3 個名額狀態池，處理時間都設為 **1500ms** 以求公平比較。
+Both pipelines keep their own independent pool of 3 spots and use the same **1500 ms** processing time, so the comparison is fair. The only difference is the queue.
 
-### Master Mode 切換
-
-Dashboard 上有 `CLIENT MODE` 切換鈕：
-- 呼叫 `POST /mode` → `event_log_service.wsManager.set_mode()` → 透過 WebSocket 廣播 `{"type": "mode", "mode": "sync"|"async"}` 給**所有連線中的手機**
-- 手機收到後立刻切換模式，`GRAB` 按鈕的行為改變（打不同 endpoint、渲染不同 pipeline 動畫）
-
-### DEMO MODE（worker pause / resume）
-
-Dashboard 上的 `⏸ PAUSE` 按鈕會發 `POST /control/pause` → publish 到 `grab_control` queue → worker 收到後 `basic_cancel` 主 consumer；此時 request 會**堆積在 RabbitMQ**（可從 RabbitMQ Management 或 Kafka UI 看到），按 `▶ RESUME` 後才會被消化，這是整場 demo 的高潮。
-
-### 一人一次限制
-
-`grab.html` 在成功搶到後會 lockout 輸入欄與按鈕，直到 **重新整理頁面** 才能再搶一次。
+`raise_grab_service` is the entry point, `grab_worker_service` is the decoupled processor, and `event_log_service` is the real-time fan-out layer — RabbitMQ sits between the first two, Kafka between the last two.
 
 ---
 
-## 常用指令
+## How to Run
 
-### 啟動 / 重啟全部服務
+Unlike the other labs, this stack builds its images from source (`build:` in the Compose file) and creates its own bridge network, so a single command brings everything up.
 
 ```bash
-cd /Users/zhong/Desktop/my_lab/2026_System_Design_Lab/mq_mechanism
+cd mq_mechanism
 
-# 冷啟動
+# Cold start
 docker compose up -d
 
-# 全部重建 image + 起服務（改過 Dockerfile / requirements 時）
+# Rebuild images + start (after changing a Dockerfile / requirements)
 docker compose up -d --build
 
-# 全部停掉
+# Stop everything
 docker compose down
 
-# 看日誌
+# Tail logs
 docker compose logs -f raise_grab_service
 docker compose logs -f grab_worker_service
 docker compose logs -f event_log_service
 ```
 
-### 遇過的重啟坑（很重要！）
+### Access Points
 
-因為 `docker-compose.yml` 有把 code volume mount 進去 (`./raise_grab_service:/app`)，改 Python code 後 **檔案雖然同步進 container，但已經在跑的 Python process 是舊的**（uvicorn 沒開 `--reload`）。所以改完 code 一定要 restart 對應服務：
+Find the host's LAN IP (phones must be on the same Wi-Fi as the machine):
 
 ```bash
-# 改完 raise_grab_service 的 code
-docker compose restart raise_grab_service
-
-# 改完 grab_worker_service 的 code
-docker compose restart grab_worker_service
-
-# 改完 event_log_service 的 code（含前端 html）
-docker compose restart event_log_service
+ipconfig getifaddr en0   # macOS Wi-Fi IP
 ```
 
-### 啟動順序問題（RabbitMQ / Kafka 還沒 ready）
+Assuming the IP is `192.168.1.42`:
 
-`depends_on` 只保證容器啟動順序，不保證服務內部真的 ready。曾經遇到：
+| Who | URL |
+|---|---|
+| Phone (scan QR / grab page) | `http://192.168.1.42:1003/` |
+| Projector dashboard | `http://192.168.1.42:1003/dashboard` |
+| Kafka UI (show the queue) | `http://192.168.1.42:1005` |
+| RabbitMQ Management | `http://192.168.1.42:15672` (`guest / guest`) |
 
-| 症狀 | 根因 | 解法 |
-|---|---|---|
-| `POST /grab` 回 `{"error_code":"grab-error-1","error_message":"failed to enqueue grab request"}` | `raise_grab_service` 比 RabbitMQ 早起來，`rabbitmq_connection.channel` 是 `None` | `docker compose restart raise_grab_service` |
-| `event_log_service` 起不來，log 顯示 `aiokafka` connection refused / `Application startup failed. Exiting.` | Kafka broker 還沒 ready | 等 Kafka 完全 ready 後 `docker compose restart event_log_service` |
-| SPOT 1~3 空的但一按 `GRAB` 就顯示 `TOO SLOW` / RESET 沒作用 | worker 是舊的 Python process（改 code 後沒 restart） | `docker compose restart grab_worker_service` |
+> The front-end derives the API base from `window.location.hostname`, so nothing is hard-coded — a phone that can reach port `1003` will automatically reach `raise_grab_service` on `1004`.
 
-**通用排錯 SOP**：改過 code 或看到怪症狀 → 先看容器啟動時間 vs. 檔案 mtime → 有差就 restart 該服務。
-
-```bash
-# 檢查容器啟動時間
-docker ps --format '{{.Names}}\t{{.Status}}'
-
-# 檢查 code 最後修改時間
-ls -la raise_grab_service/service/
-```
-
----
-
-## 查 IP（讓手機連得到）
-
-Demo 時投影幕跑 dashboard、手機要連 raise_grab_service。**手機和電腦必須在同一 Wi-Fi**。
-
-### macOS 查本機 IP
+Generate a QR code for the audience:
 
 ```bash
-# 方法一（推薦，直接印出 Wi-Fi IP）
-ipconfig getifaddr en0
-
-# 方法二（有線網路試 en1）
-ipconfig getifaddr en1
-
-# 方法三（列出全部 interface）
-ifconfig | grep "inet " | grep -v 127.0.0.1
-```
-
-假設拿到 `192.168.1.42`：
-- **手機掃 QR Code / 打 URL**：`http://192.168.1.42:1003/`（進 `grab.html`）
-- **投影幕 dashboard**：`http://192.168.1.42:1003/dashboard`
-- **Kafka UI（給觀眾看 queue）**：`http://192.168.1.42:1004`
-- **RabbitMQ Management**：`http://192.168.1.42:15672`（`guest / guest`）
-
-> 前端 JS 用 `window.location.hostname` 動態組 API base（`http://<host>:1001`），所以不用寫死 IP，手機只要能連到 `1003` 就自動連得到 `1001`。
-
-### 產 QR Code 給觀眾掃
-
-```bash
-# 用 qrencode 直接在 terminal 印一個
 brew install qrencode
 qrencode -t ansiutf8 "http://192.168.1.42:1003/"
 ```
 
 ---
 
-## Demo 建議流程
+## Operational Notes
 
-1. 開場：投影 `http://<ip>:1003/dashboard`，讓大家看到 3 個空 SPOT + ASYNC / SYNC 兩塊
-2. QR Code 貼牆上，觀眾用手機進 `http://<ip>:1003/`
-3. **第一輪（ASYNC + PAUSE 演示）**：按 `⏸ PAUSE` → 讓觀眾狂搶 → 開 Kafka UI / RabbitMQ Management 讓大家看訊息堆積 → 按 `▶ RESUME` → SPOT 依序被搶下
-4. `RESET` 清空
-5. **第二輪（SYNC 對比）**：dashboard 切到 SYNC → 觀眾同時搶 → 看到 dashboard 是「1 秒才更新一次」的 polling 效果（有明顯延遲感），且 sync 的 request 因為在 web process 內排隊會愈來愈久
-6. `RESET` 清空、切回 ASYNC 收尾
+Code is volume-mounted into the containers, but the running Python process is **not** auto-reloaded. After changing code, restart the affected service:
+
+```bash
+docker compose restart raise_grab_service   # after editing raise_grab_service
+docker compose restart grab_worker_service  # after editing grab_worker_service
+docker compose restart event_log_service    # after editing event_log_service (incl. front-end HTML)
+```
+
+`depends_on` only orders container startup — it does not wait for RabbitMQ/Kafka to be internally ready. Common startup issues:
+
+| Symptom | Root cause | Fix |
+|---|---|---|
+| `POST /grab` returns `grab-error-1 / failed to enqueue grab request` | `raise_grab_service` started before RabbitMQ was ready (channel is `None`) | `docker compose restart raise_grab_service` |
+| `event_log_service` fails to start (`aiokafka` connection refused / `Application startup failed`) | Kafka broker not ready yet | wait for Kafka, then `docker compose restart event_log_service` |
+| Spots stay empty but grabbing shows `TOO SLOW` / RESET does nothing | worker is running stale code (edited without restart) | `docker compose restart grab_worker_service` |
+
+**Troubleshooting rule of thumb:** after editing code or seeing odd behavior, compare the container start time against the file mtime; if they differ, restart that service.
+
+```bash
+docker ps --format '{{.Names}}\t{{.Status}}'   # container start times
+ls -la raise_grab_service/service/             # code mtimes
+```
+
+---
+
+## Suggested Demo Flow
+
+1. Project `http://<ip>:1003/dashboard` — 3 empty spots, ASYNC and SYNC panels side by side.
+2. Post the QR code; audience opens `http://<ip>:1003/` on their phones.
+3. **Round 1 (ASYNC + PAUSE):** press `⏸ PAUSE`, let everyone grab, open Kafka UI / RabbitMQ Management to show messages piling up, then `▶ RESUME` — spots fill in order. This is the highlight.
+4. `RESET` to clear.
+5. **Round 2 (SYNC contrast):** switch the dashboard to SYNC; everyone grabs at once and the audience sees the 1-second polling lag and growing queue time inside the web process.
+6. `RESET`, switch back to ASYNC, and wrap up.
